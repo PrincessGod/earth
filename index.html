@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Earth</title>
+    <style>
+        html, body, div{
+            margin: 0px;
+            padding: 0px;
+            width: 100%;
+            height: 100%;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <canvas id='glpaper'></canvas>
+    </div>
+    <script id="single-vs" type="shader">
+        precision mediump float;
+
+        attribute vec3 vPosition;
+        
+        void main() {
+            gl_PointSize = 4.0;
+            gl_Position = vec4(vPosition, 1.0);
+        }
+    </script>
+    <script id="single-fs" type="shader">
+        precision mediump float;
+
+        void main() {
+            gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        }
+    </script>
+    <script src="./gl.js"></script>
+    <script src="./primitive.js"></script>
+    <script>
+        PGGL.getWebglContext('glpaper');
+        PGGL.gl.clearColor(0.75, 0.85, 0.8, 1.0);
+        PGGL.gl.clear(PGGL.gl.COLOR_BUFFER_BIT | PGGL.gl.DEPTH_BUFFER_BIT);
+        var program = PGGL.createProgram('single-vs', 'single-fs');
+
+        var triangleVertices = [
+            0.0, 0.5, 1.0,
+            -0.5, -0.5, 1.0,
+            0.5, -0.5, 1.0
+        ];
+        var sphere = PGGL.createSphereVertices(0.8, 10, 5);
+        var positionInfo = PGGL.createAttributeInfo(program, 'vPosition', sphere.position, 3);
+        PGGL.draw(positionInfo);
+        
+
+    </script>
+</body>
+</html>
