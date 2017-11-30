@@ -97,7 +97,7 @@
         var uniformsInfo = {
             u_lightWorldPos: [1, 6, -10],
             u_lightColor: [1, 1, 1, 1],
-            u_ambient: [0, 0, 0, 1],
+            u_ambient: [0.2, 0.2, 0.2, 1],
             u_specular: [1, 1, 1, 1],
             u_shininess: 500,
             u_specularFactor: 2,
@@ -135,7 +135,7 @@
 
         PGGL.setSingleTexture('worldmap.jpg');
 
-        function render(time) {            
+        function render(time) {
             time *= 0.0002;
             mat4.identity(identityMatrix);
             mat4.identity(worldMatrix);
@@ -143,7 +143,6 @@
             mat4.perspective(projMatrix, glMatrix.toRadian(45), PGGL.gl.canvas.clientWidth / PGGL.gl.canvas.clientHeight, 0.1, 1000);
             mat4.invert(u_ViewInverse, viewMatrix);  
             mat4.rotate(worldMatrix, identityMatrix, time, [0, 1, 0]);
-            u_world = worldMatrix;
             mat4.invert(u_worldInverseTranspose, worldMatrix)
             mat4.transpose(u_worldInverseTranspose, u_worldInverseTranspose);
             mat4.mul(u_worldViewProjection, projMatrix, viewMatrix);
@@ -151,12 +150,12 @@
 
             Object.assign(uniformsInfo, {
                 u_ViewInverse: u_ViewInverse,
-                u_world: u_world,
+                u_world: worldMatrix,
                 u_worldInverseTranspose: u_worldInverseTranspose,
                 u_worldViewProjection: u_worldViewProjection
             });
             programInfo.uniformsInfo = uniformsInfo;
-           
+
             PGGL.draw(programInfo);
             requestAnimationFrame(render);
         }
