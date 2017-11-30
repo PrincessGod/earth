@@ -24,40 +24,142 @@
         <canvas id='glpaper'></canvas>
     </div>
     <script id="single-vs" type="shader">
-        precision mediump float;
-
-        attribute vec3 vPosition;
+        uniform mat4 u_worldViewProjection;
+        uniform vec3 u_lightWorldPos;
+        uniform mat4 u_world;
+        uniform mat4 u_viewInverse;
+        uniform mat4 u_worldInverseTranspose;
+        
+        attribute vec4 position;
+        attribute vec3 normal;
+        attribute vec2 texcoord;
+        
+        varying vec4 v_position;
+        varying vec2 v_texCoord;
+        varying vec3 v_normal;
+        varying vec3 v_surfaceToLight;
+        varying vec3 v_surfaceToView;
         
         void main() {
-            gl_PointSize = 4.0;
-            gl_Position = vec4(vPosition, 1.0);
+          v_texCoord = texcoord;
+          v_position = u_worldViewProjection * position;
+          v_normal = (u_worldInverseTranspose * vec4(normal, 0)).xyz;
+          v_surfaceToLight = u_lightWorldPos - (u_world * position).xyz;
+          v_surfaceToView = (u_viewInverse[3] - (u_world * position)).xyz;
+          gl_Position = v_position;
         }
     </script>
     <script id="single-fs" type="shader">
         precision mediump float;
-
+        
+        varying vec4 v_position;
+        varying vec2 v_texCoord;
+        varying vec3 v_normal;
+        varying vec3 v_surfaceToLight;
+        varying vec3 v_surfaceToView;
+        
+        uniform vec4 u_lightColor;
+        uniform vec4 u_ambient;
+        uniform sampler2D u_diffuse;
+        uniform vec4 u_specular;
+        uniform float u_shininess;
+        uniform float u_specularFactor;
+        
+        vec4 lit(float l ,float h, float m) {
+          return vec4(1.0,
+                      max(l, 0.0),
+                      (l > 0.0) ? pow(max(0.0, h), m) : 0.0,
+                      1.0);
+        }
+        
         void main() {
-            gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+          vec4 diffuseColor = vec4(0.4, 0.4, 0.4, 0.5);
+          vec3 a_normal = normalize(v_normal);
+          vec3 surfaceToLight = normalize(v_surfaceToLight);
+          vec3 surfaceToView = normalize(v_surfaceToView);
+          vec3 halfVector = normalize(surfaceToLight + surfaceToView);
+          vec4 litR = lit(dot(a_normal, surfaceToLight),
+                            dot(a_normal, halfVector), u_shininess);
+          vec4 outColor = vec4((
+          u_lightColor * (diffuseColor * litR.y + diffuseColor * u_ambient +
+                        u_specular * litR.z * u_specularFactor)).rgb,
+              diffuseColor.a);
+          gl_FragColor = outColor;
         }
     </script>
     <script src="./gl.js"></script>
     <script src="./primitive.js"></script>
+    <script src="./gl-matrix-min.js"></script>
     <script>
         PGGL.getWebglContext('glpaper');
-        PGGL.gl.clearColor(0.75, 0.85, 0.8, 1.0);
-        PGGL.gl.clear(PGGL.gl.COLOR_BUFFER_BIT | PGGL.gl.DEPTH_BUFFER_BIT);
         var program = PGGL.createProgram('single-vs', 'single-fs');
+        var sphere = PGGL.createSphereVertices(1, 60, 30);
+        var uniformsInfo = {
+            u_lightWorldPos: [1, 6, -10],
+            u_lightColor: [1, 1, 1, 1],
+            u_ambient: [0, 0, 0, 1],
+            u_specular: [1, 1, 1, 1],
+            u_shininess: 500,
+            u_specularFactor: 2,
+        };
+        var eye = [1, 2, -3];
+        var target = [0, 0, 0];
+        var up = [0, 1, 0];
 
-        var triangleVertices = [
-            0.0, 0.5, 1.0,
-            -0.5, -0.5, 1.0,
-            0.5, -0.5, 1.0
-        ];
-        var sphere = PGGL.createSphereVertices(0.8, 10, 5);
-        var positionInfo = PGGL.createAttributeInfo(program, 'vPosition', sphere.position, 3);
-        PGGL.draw(positionInfo);
+        var projMatrix = new Float32Array(16);
+        var viewMatrix = new Float32Array(16);
+        var worldMatrix = new Float32Array(16);
+        var identityMatrix = new Float32Array(16);
+        var u_ViewInverse = new Float32Array(16);
+        var u_world = new Float32Array(16);
+        var u_worldInverseTranspose = new Float32Array(16);
+        var u_worldViewProjection = new Float32Array(16);      
         
+        var programInfo = PGGL.createProgramInfo(program, [
+            {
+                property: 'position',
+                bufferData: sphere.position,
+                components: 3
+            },
+            {
+                property: 'normal',
+                bufferData: sphere.normal,
+                components: 3
+            },
+            {
+                property: 'texcoord',
+                bufferData: sphere.texcoord,
+                components: 2
+            }
+        ], sphere.indices);
 
+        function render(time) {            
+            time *= 0.001;
+            mat4.identity(identityMatrix);
+            mat4.identity(worldMatrix);
+            mat4.lookAt(viewMatrix, eye, target, up);
+            mat4.perspective(projMatrix, glMatrix.toRadian(45), PGGL.gl.canvas.clientWidth / PGGL.gl.canvas.clientHeight, 0.1, 1000);
+            mat4.invert(u_ViewInverse, viewMatrix);  
+            mat4.rotate(worldMatrix, identityMatrix, time, [0, 1, 0]);
+            u_world = worldMatrix;
+            mat4.invert(u_worldInverseTranspose, worldMatrix)
+            mat4.transpose(u_worldInverseTranspose, u_worldInverseTranspose);
+            mat4.mul(u_worldViewProjection, projMatrix, viewMatrix);
+            mat4.mul(u_worldViewProjection, u_worldViewProjection, worldMatrix);
+
+            Object.assign(uniformsInfo, {
+                u_ViewInverse: u_ViewInverse,
+                u_world: u_world,
+                u_worldInverseTranspose: u_worldInverseTranspose,
+                u_worldViewProjection: u_worldViewProjection
+            });
+
+            programInfo.uniformsInfo = uniformsInfo;
+           
+            PGGL.draw(programInfo);
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
     </script>
 </body>
 </html>

@@ -51,48 +51,134 @@ var PGGL = {};
         return program;
     }
 
-    PGGL.createBuffer = function(bufferData) {
-        var typedArray;
-        if(Array.isArray(bufferData)) {
-            typedArray = this.createBuffer(bufferData);
+    function getTypedArray(data, type) {
+        if(Array.isArray(data)) {
+            return new type(data);
         }
-        else if(ArrayBuffer.isView(bufferData)) {
-            typedArray = bufferData;
+        else if(ArrayBuffer.isView(data)) {
+            return data;
         }
         else {
             console.error('Buffer data neither Array nor TypedArray');
             return null;
         }
+    }
+
+    PGGL.createBuffer = function(bufferData, bindPoint, type) {
+        var typedArray = getTypedArray(bufferData, type);
         var buffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-        gl.bufferData(gl.ARRAY_BUFFER, typedArray, gl.STATIC_DRAW);
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        gl.bindBuffer(bindPoint, buffer);
+        gl.bufferData(bindPoint, typedArray, gl.STATIC_DRAW);
+        gl.bindBuffer(bindPoint, null);
         return buffer;
     }
 
-    PGGL.createAttributeInfo = function(program, property, bufferData, components) {
+    // property, bufferData, components, type, normalize
+    PGGL.createAttributeInfo = function(attribute) {
+        var property = attribute.property;
+        var bufferData = attribute.bufferData;
+        var components = attribute.components;
+        var type = !!attribute.type ? attribute.type : gl.FLOAT;
+        var normalize = !!attribute.normalize;
         var location = gl.getAttribLocation(program, property);
         return {
-            program: program,
-            buffer: this.createBuffer(bufferData),
+            buffer: this.createBuffer(bufferData, gl.ARRAY_BUFFER, Float32Array),
             location: location,
-            components: components
+            components: components,
+            type: type,
+            normalize: normalize
         }
+    }
+
+    PGGL.createProgramInfo = function(program, attributes, indices) {
+        var attributesInfo = [];
+        attributes.forEach(function(attribute) {
+            attributesInfo.push(PGGL.createAttributeInfo(attribute));
+        });
+        var count = indices.length || attributes[0].bufferData.length / 3;
+        return {
+            program: program,
+            attrbutesInfo: attributesInfo,
+            index: PGGL.createBuffer(indices, gl.ELEMENT_ARRAY_BUFFER, Uint16Array),
+            count: count
+        };
     }
 
     PGGL.setAttribute = function(info) {
         gl.bindBuffer(gl.ARRAY_BUFFER, info.buffer);
-        gl.vertexAttribPointer(info.location, info.components, gl.FLOAT, gl.FALSE, 0, 0);
+        gl.vertexAttribPointer(info.location, info.components, info.type, info.normalize, 0, 0);
         gl.enableVertexAttribArray(info.location);
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    }
+
+    PGGL.getSetUniformFun = function(data) {
+        if(typeof data === 'number') {
+            return function(location, data) {
+                gl.uniform1f(location, data);
+            }
+        }
+        if(Array.isArray(data) || ArrayBuffer.isView(data)) {
+            var length = data.length;
+            switch(length) {
+                case 0:
+                console.error('Uniform data is an Array with 0 element.');
+                return undefined;
+                case 1:
+                return function(location, data) {
+                    gl.uniform1fv(location, data);
+                }
+                case 2:
+                return function(location, data) {
+                    gl.uniform2fv(location, data);
+                }
+                case 3:
+                return function(location, data) {
+                    gl.uniform3fv(location, data);
+                }
+                case 4:
+                return function(location, data) {
+                    gl.uniform4fv(location, data);
+                }
+                case 16:
+                return function(location, data) {
+                    gl.uniformMatrix4fv(location, false, data);
+                }
+            }
+        }
+        console.error('Unknown uniform data type.');
+    }
+
+    // data, property
+    PGGL.setUniform = function(program, uniformInfo){
+        var data = uniformInfo.data;
+        var property = uniformInfo.property;
+        var func = this.getSetUniformFun(data);
+        var location = gl.getUniformLocation(program, property);
+        func(location, data);
     }
 
     PGGL.draw = function(info) {
         this.resizeToFix(gl.canvas);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.CULL_FACE);
+        PGGL.gl.clearColor(0.75, 0.85, 0.8, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
         gl.useProgram(info.program);
-        this.setAttribute(info);
-        gl.drawArrays(gl.POINTS, 0, 66);
+        info.attrbutesInfo.forEach(function(info) {
+            PGGL.setAttribute(info);
+        });
+        for (var property in info.uniformsInfo) {
+            PGGL.setUniform(info.program, {property : property, data: info.uniformsInfo[property]});
+        }
+        if(info.index) {
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, info.index);
+            gl.drawElements(gl.TRIANGLES, info.count, gl.UNSIGNED_SHORT, 0);
+        }
+        else {
+            gl.drawArrays(gl.TRIANGLES, 0, info.count);
+        }
     }
 
     PGGL.resizeToFix = function(canvas) {
