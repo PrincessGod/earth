@@ -95,12 +95,12 @@
         var program = PGGL.createProgram('single-vs', 'single-fs');
         var sphere = PGGL.createSphereVertices(1, 60, 30);
         var uniformsInfo = {
-            u_lightWorldPos: [1, 6, -10],
+            u_lightWorldPos: [1, 5, -8],
             u_lightColor: [1, 1, 1, 1],
             u_ambient: [0.2, 0.2, 0.2, 1],
             u_specular: [1, 1, 1, 1],
-            u_shininess: 500,
-            u_specularFactor: 2,
+            u_shininess: 50,
+            u_specularFactor: 0.8,
         };
         var eye = [1, 2, -3];
         var target = [0, 0, 0];

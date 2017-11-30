@@ -180,7 +180,7 @@ var PGGL = {};
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.CULL_FACE);
-        PGGL.gl.clearColor(0, 0, 0, 1.0);
+        PGGL.gl.clearColor(0.03, 0.03, 0.03, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         gl.useProgram(info.program);
