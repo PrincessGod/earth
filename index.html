@@ -73,7 +73,7 @@
         }
         
         void main() {
-          vec4 diffuseColor = vec4(0.4, 0.4, 0.4, 0.5);
+          vec4 diffuseColor =  texture2D(u_diffuse, v_texCoord);
           vec3 a_normal = normalize(v_normal);
           vec3 surfaceToLight = normalize(v_surfaceToLight);
           vec3 surfaceToView = normalize(v_surfaceToView);
@@ -133,8 +133,10 @@
             }
         ], sphere.indices);
 
+        PGGL.setSingleTexture('worldmap.jpg');
+
         function render(time) {            
-            time *= 0.001;
+            time *= 0.0002;
             mat4.identity(identityMatrix);
             mat4.identity(worldMatrix);
             mat4.lookAt(viewMatrix, eye, target, up);
@@ -153,7 +155,6 @@
                 u_worldInverseTranspose: u_worldInverseTranspose,
                 u_worldViewProjection: u_worldViewProjection
             });
-
             programInfo.uniformsInfo = uniformsInfo;
            
             PGGL.draw(programInfo);
