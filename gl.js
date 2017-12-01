@@ -74,7 +74,7 @@ var PGGL = {};
     }
 
     // property, bufferData, components, type, normalize
-    PGGL.createAttributeInfo = function(attribute) {
+    PGGL.createAttributeInfo = function(program, attribute) {
         var property = attribute.property;
         var bufferData = attribute.bufferData;
         var components = attribute.components;
@@ -93,7 +93,7 @@ var PGGL = {};
     PGGL.createProgramInfo = function(program, attributes, indices) {
         var attributesInfo = [];
         attributes.forEach(function(attribute) {
-            attributesInfo.push(PGGL.createAttributeInfo(attribute));
+            attributesInfo.push(PGGL.createAttributeInfo(program, attribute));
         });
         var count = indices.length || attributes[0].bufferData.length / 3;
         return {
@@ -157,7 +157,7 @@ var PGGL = {};
         func(location, data);
     }
 
-    PGGL.setSingleTexture = function(url) {
+    PGGL.getImgTexture = function(url, set, originTex) {
         var texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -166,21 +166,105 @@ var PGGL = {};
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
                     new Uint8Array([127, 127, 127, 255]));
-
         var image = new Image();
         image.src = url;
         image.addEventListener('load', function() {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, image);
+            if(set) {
+                gl.bindTexture(gl.TEXTURE_2D, texture);            
+            }
+            else {
+                gl.bindTexture(gl.TEXTURE_2D, originTex);
+            }
         });
+        return texture;
+    }
+    // color drawMode
+    PGGL.getRenderTexture = function(geojson, set, options) {
+        var color = (options && options.color) || false;
+        var drawMode = (options && options.drawMode) || false;
+        var colorArray = geojson.color;
+        if(color) {
+            colorArray = new Float32Array(geojson.color.length);
+            asignPush(colorArray);
+            for(var i = 0; i < colorArray.length / 3; i++) {
+                colorArray.push(color);
+            }
+        }
+        var texPorgram = PGGL.createProgram('texture-vs', 'texture-fs');
+        var texPorgramInfo = PGGL.createProgramInfo(texPorgram, [
+            {
+                property: 'position',
+                bufferData: geojson.position,
+                components: 2
+            },
+            {
+                property: 'color',
+                bufferData: colorArray,
+                components: 3
+            }
+        ], geojson.indices);
+
+        var renderTextureWidth = 3200;
+        var renderTextureHeight = 1600;
+        var renderTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, renderTexture);
+
+        var level = 0;
+        var internalForamt = gl.RGBA;
+        var border = 0;
+        var format = gl.RGBA;
+        var type = gl.UNSIGNED_BYTE;
+        var data = null;
+        gl.texImage2D(gl.TEXTURE_2D, level, internalForamt,
+                    renderTextureWidth, renderTextureHeight, border,
+                    format, type, data);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        
+        var fb = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+
+        var attachmentPoint = gl.COLOR_ATTACHMENT0;
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, renderTexture, level);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+        gl.bindTexture(gl.TEXTURE_2D, renderTexture);
+        gl.viewport(0, 0, renderTextureWidth, renderTextureHeight);
+
+        PGGL.draw(texPorgramInfo, {
+            cullFace: false,
+            drawMode: drawMode,
+            color: [0.6, 0.6, 0.6, 1.0],
+            width: renderTextureWidth,
+            height: renderTextureHeight
+        });
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        if (!set) {
+            gl.bindTexture(gl.TEXTURE_2D, null);            
+        }
+        return renderTexture;
     }
 
-    PGGL.draw = function(info) {
+    // options: {cullFace, drawMode, color, width, height}
+    PGGL.draw = function(info, options) {
+        var cullFace = options && options.cullFace === false ? false : true;
+        var drawMode = (options && options.drawMode) || gl.TRIANGLES;
+        var color = (options && options.color) || [0, 0, 0, 1.0];
+        var width = (options && options.width) || gl.canvas.width;
+        var height = (options && options.height) || gl.canvas.height;
         this.resizeToFix(gl.canvas);
-        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        gl.viewport(0, 0, width, height);
         gl.enable(gl.DEPTH_TEST);
-        gl.enable(gl.CULL_FACE);
-        PGGL.gl.clearColor(0, 0, 0, 1.0);
+        if(cullFace) {
+            gl.enable(gl.CULL_FACE);
+        }
+        else {
+            gl.disable(gl.CULL_FACE);
+        }
+        PGGL.gl.clearColor(color[0], color[1], color[2], color[3]);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         gl.useProgram(info.program);
@@ -192,10 +276,10 @@ var PGGL = {};
         }
         if(info.index) {
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, info.index);
-            gl.drawElements(gl.TRIANGLES, info.count, gl.UNSIGNED_SHORT, 0);
+            gl.drawElements(drawMode, info.count, gl.UNSIGNED_SHORT, 0);
         }
         else {
-            gl.drawArrays(gl.TRIANGLES, 0, info.count);
+            gl.drawArrays(drawMode, 0, info.count);
         }
     }
 

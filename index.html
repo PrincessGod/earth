@@ -87,79 +87,135 @@
           gl_FragColor = outColor;
         }
     </script>
+    <script id="texture-vs" type="shader">
+        precision mediump float;
+
+        attribute vec2 position;
+        attribute vec3 color;
+
+        varying vec3 v_color;
+
+        void main() {
+            v_color = color;
+            vec2 newPos = position / vec2(180.0, -90.0);
+            gl_Position = vec4(newPos, 0.0, 1.0);
+        }
+    </script>
+    <script id="texture-fs" type="shader">
+        precision mediump float;
+
+        varying vec3 v_color;
+
+        void main() {
+            gl_FragColor = vec4(v_color, 1.0);
+        }
+    </script>
+    <script src="./chroma.min.js"></script>
+    <script src="./gl-matrix-min.js"></script>
     <script src="./gl.js"></script>
     <script src="./primitive.js"></script>
-    <script src="./gl-matrix-min.js"></script>
     <script>
-        PGGL.getWebglContext('glpaper');
-        var program = PGGL.createProgram('single-vs', 'single-fs');
-        var sphere = PGGL.createSphereVertices(1, 60, 30);
-        var uniformsInfo = {
-            u_lightWorldPos: [1, 6, -10],
-            u_lightColor: [1, 1, 1, 1],
-            u_ambient: [0.2, 0.2, 0.2, 1],
-            u_specular: [1, 1, 1, 1],
-            u_shininess: 500,
-            u_specularFactor: 2,
-        };
-        var eye = [1, 2, -3];
-        var target = [0, 0, 0];
-        var up = [0, 1, 0];
+        var renderGreyTex, renderColorTex, renderLineTex, imgTex;
+        PGGL.geojsonProvider('world.json').then(function(vdata){
+            PGGL.getWebglContext('glpaper');
+            renderGreyTex = PGGL.getRenderTexture(vdata, true, {color: [0.4, 0.4, 0.4]});
+            renderLineTex = PGGL.getRenderTexture(vdata, true, {drawMode: PGGL.gl.LINES});
+            renderColorTex = PGGL.getRenderTexture(vdata, false);
+            imgTex = PGGL.getImgTexture('worldmap.jpg', false, renderGreyTex);
+            var textures = [renderGreyTex, renderColorTex, renderLineTex, imgTex];
+            var next = 1;
+            document.getElementById('glpaper')
+                .addEventListener('click', function() {
+                    PGGL.gl.bindTexture(PGGL.gl.TEXTURE_2D, textures[next++]);
+                    next = next >= textures.length ? 0 : next;
+                });
+            renderSphere();
+        });
 
-        var projMatrix = new Float32Array(16);
-        var viewMatrix = new Float32Array(16);
-        var worldMatrix = new Float32Array(16);
-        var identityMatrix = new Float32Array(16);
-        var u_ViewInverse = new Float32Array(16);
-        var u_world = new Float32Array(16);
-        var u_worldInverseTranspose = new Float32Array(16);
-        var u_worldViewProjection = new Float32Array(16);      
-        
-        var programInfo = PGGL.createProgramInfo(program, [
-            {
-                property: 'position',
-                bufferData: sphere.position,
-                components: 3
-            },
-            {
-                property: 'normal',
-                bufferData: sphere.normal,
-                components: 3
-            },
-            {
-                property: 'texcoord',
-                bufferData: sphere.texcoord,
-                components: 2
+        var addClickEvent = function() {
+            var el = document.getElementById('glpaper');
+            if (el.addEventListener) {
+                el.addEventListener('click', onCanvesClick(), false);
+            } 
+            else {
+                el.attachEvent('onclick', onCanvesClick());
+            }  
+        }
+
+        var onCanvesClick = function() {
+            var next = imgTex;
+            PGGL.gl.bindTexture(PGGL.gl.TEXTURE_2D, next);
+            next = next === renderTex ? imgTex : renderTex;
+        }
+
+        var renderSphere = function () {
+            var program = PGGL.createProgram('single-vs', 'single-fs');
+            var sphere = PGGL.createSphereVertices(1, 60, 30);
+            var uniformsInfo = {
+                u_lightWorldPos: [1, 6, -10],
+                u_lightColor: [1, 1, 1, 1],
+                u_ambient: [0.2, 0.2, 0.2, 1],
+                u_specular: [1, 1, 1, 1],
+                u_shininess: 500,
+                u_specularFactor: 2,
+            };
+            var eye = [1, 2, -3];
+            var target = [0, 0, 0];
+            var up = [0, 1, 0];
+
+            var projMatrix = new Float32Array(16);
+            var viewMatrix = new Float32Array(16);
+            var worldMatrix = new Float32Array(16);
+            var identityMatrix = new Float32Array(16);
+            var u_ViewInverse = new Float32Array(16);
+            var u_world = new Float32Array(16);
+            var u_worldInverseTranspose = new Float32Array(16);
+            var u_worldViewProjection = new Float32Array(16);      
+            
+            var programInfo = PGGL.createProgramInfo(program, [
+                {
+                    property: 'position',
+                    bufferData: sphere.position,
+                    components: 3
+                },
+                {
+                    property: 'normal',
+                    bufferData: sphere.normal,
+                    components: 3
+                },
+                {
+                    property: 'texcoord',
+                    bufferData: sphere.texcoord,
+                    components: 2
+                }
+            ], sphere.indices);
+
+            function render(time) {
+                time *= 0.0002;
+                mat4.identity(identityMatrix);
+                mat4.identity(worldMatrix);
+                mat4.lookAt(viewMatrix, eye, target, up);
+                mat4.perspective(projMatrix, glMatrix.toRadian(45), PGGL.gl.canvas.clientWidth / PGGL.gl.canvas.clientHeight, 0.1, 1000);
+                mat4.invert(u_ViewInverse, viewMatrix);  
+                mat4.rotate(worldMatrix, identityMatrix, time, [0, 1, 0]);
+                mat4.invert(u_worldInverseTranspose, worldMatrix)
+                mat4.transpose(u_worldInverseTranspose, u_worldInverseTranspose);
+                mat4.mul(u_worldViewProjection, projMatrix, viewMatrix);
+                mat4.mul(u_worldViewProjection, u_worldViewProjection, worldMatrix);
+
+                Object.assign(uniformsInfo, {
+                    u_ViewInverse: u_ViewInverse,
+                    u_world: worldMatrix,
+                    u_worldInverseTranspose: u_worldInverseTranspose,
+                    u_worldViewProjection: u_worldViewProjection
+                });
+                programInfo.uniformsInfo = uniformsInfo;
+
+                PGGL.draw(programInfo);
+                requestAnimationFrame(render);
             }
-        ], sphere.indices);
-
-        PGGL.setSingleTexture('worldmap.jpg');
-
-        function render(time) {
-            time *= 0.0002;
-            mat4.identity(identityMatrix);
-            mat4.identity(worldMatrix);
-            mat4.lookAt(viewMatrix, eye, target, up);
-            mat4.perspective(projMatrix, glMatrix.toRadian(45), PGGL.gl.canvas.clientWidth / PGGL.gl.canvas.clientHeight, 0.1, 1000);
-            mat4.invert(u_ViewInverse, viewMatrix);  
-            mat4.rotate(worldMatrix, identityMatrix, time, [0, 1, 0]);
-            mat4.invert(u_worldInverseTranspose, worldMatrix)
-            mat4.transpose(u_worldInverseTranspose, u_worldInverseTranspose);
-            mat4.mul(u_worldViewProjection, projMatrix, viewMatrix);
-            mat4.mul(u_worldViewProjection, u_worldViewProjection, worldMatrix);
-
-            Object.assign(uniformsInfo, {
-                u_ViewInverse: u_ViewInverse,
-                u_world: worldMatrix,
-                u_worldInverseTranspose: u_worldInverseTranspose,
-                u_worldViewProjection: u_worldViewProjection
-            });
-            programInfo.uniformsInfo = uniformsInfo;
-
-            PGGL.draw(programInfo);
             requestAnimationFrame(render);
         }
-        requestAnimationFrame(render);
     </script>
 </body>
 </html>

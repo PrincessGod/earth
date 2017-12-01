@@ -56,7 +56,92 @@ function asignPush(array) {
     array.push = function () {
         for (var i = 0; i < arguments.length; ++i) {
             var value = arguments[i];
-            array[cursor++] = value;
+            if (value instanceof Array) {
+                for (var j = 0; j < value.length; j++) {
+                    array[cursor++] = value[j];
+                }
+            }
+            else {
+                array[cursor++] = value;
+            }
         }
     };
+}
+
+PGGL.geojsonProvider = function(url) {
+    return fetch(url).then(function(response) {
+        return response.json();
+    }).then(function(json) {
+        var features = json.features;
+        var featuresLength = features.length;
+        var i;
+
+        var polygons = [];
+        for(i = 0; i < featuresLength; i++) {
+            var feature = features[i];
+            if(feature.geometry.type === 'Polygon') {
+                var polygon = feature.geometry.coordinates[0];
+                var length = polygon.length;
+                if(length < 3) {return;}
+                if(polygon[0][0] === polygon[length - 1][0] && polygon[0][1] === polygon[length - 1][1]) {
+                    polygon.pop();
+                    if(polygon.length < 3) {return;}
+                }
+                polygons.push(polygon);
+            }
+            else if (feature.geometry.type === 'MultiPolygon') {
+                feature.geometry.coordinates.forEach(function(polygon) {
+                    polygon = polygon[0];
+                    if(!polygon || !polygon instanceof Array) {return;}
+                    var length = polygon.length;
+                    if(length < 3) {return;}
+                    if(polygon[0] && polygon[length - 1] && polygon[0][0] === polygon[length - 1][0] && polygon[0][1] === polygon[length - 1][1]) {
+                        polygon.pop();
+                        if(polygon.length < 3) {return;}
+                    }
+                    polygons.push(polygon);
+                });
+            }
+        }
+        var polygonCount = polygons.length;
+        var vertexCount = 0;
+        var indexCount = 0;
+        for(i = 0; i < polygonCount; i++) {
+            vertexCount += polygons[i].length;
+            indexCount += 3 * (polygons[i].length - 2);
+        }
+
+        var positions = new Float32Array(2 * vertexCount);
+        var colors = new Float32Array(3 * vertexCount)
+        var indices = new Uint16Array(indexCount);
+        asignPush(positions);
+        asignPush(colors);
+        asignPush(indices);
+        var cursor = 0;
+        var hue = Math.random() * 360;
+        for(i = 0; i < polygonCount; i++) {
+            var u = i / polygonCount;
+            var h = (360 + hue + (Math.abs(u - 0.5) * 100)) % 360;
+            var s = Math.sin(u * Math.PI * 2) * 0.25 + 0.75;
+            var v = 1.0;
+            var color = chroma.hsv(h, s, v).gl().pop();
+            positions.push([].concat.apply([], polygons[i]));
+            for(var j = 0; j < polygons[i].length; j++) {
+                colors.push(color);
+            }
+            var length = polygons[i].length;
+            for(var j = 0, length = polygons[i].length; j < length - 2; j++) {
+                indices.push(cursor, cursor + j + 1, cursor + j + 2);
+            }
+            cursor += length;
+        }
+
+        return {
+            position: positions,
+            color: colors,
+            indices: indices
+        }
+    }).catch(function(err) {
+        console.error(err);
+    });
 }
