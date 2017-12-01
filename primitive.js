@@ -124,7 +124,8 @@ PGGL.geojsonProvider = function(url) {
             var h = (360 + hue + (Math.abs(u - 0.5) * 100)) % 360;
             var s = Math.sin(u * Math.PI * 2) * 0.25 + 0.75;
             var v = 1.0;
-            var color = chroma.hsv(h, s, v).gl().pop();
+            var color = chroma.hsv(h, s, v).gl();
+            color.pop();
             positions.push([].concat.apply([], polygons[i]));
             for(var j = 0; j < polygons[i].length; j++) {
                 colors.push(color);
