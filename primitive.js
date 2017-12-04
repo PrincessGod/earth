@@ -114,9 +114,11 @@ PGGL.geojsonProvider = function(url) {
         var positions = new Float32Array(2 * vertexCount);
         var colors = new Float32Array(3 * vertexCount)
         var indices = new Uint16Array(indexCount);
+        var boundaryIndices = new Uint16Array(2 * vertexCount);
         asignPush(positions);
         asignPush(colors);
         asignPush(indices);
+        asignPush(boundaryIndices);
         var cursor = 0;
         var hue = Math.random() * 360;
         for(i = 0; i < polygonCount; i++) {
@@ -139,12 +141,19 @@ PGGL.geojsonProvider = function(url) {
             });
             indices.push(index);
 
+            var vCount = polygons[i].length;
+            for(var l = 0; l < vCount; l++) {
+                var next = (l == vCount - 1) ? cursor : cursor + l + 1;
+                boundaryIndices.push(cursor + l, next);
+            }
+
             cursor += polygons[i].length;
         }
         return {
             position: positions,
             color: colors,
-            indices: indices
+            indices: indices,
+            boundaryIndices: boundaryIndices
         }
     }).catch(function(err) {
         console.error(err);

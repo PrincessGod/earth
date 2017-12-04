@@ -65,6 +65,7 @@ var PGGL = {};
     }
 
     PGGL.createBuffer = function(bufferData, bindPoint, type) {
+        if(!bufferData) {return undefined;}
         var typedArray = getTypedArray(bufferData, type);
         var buffer = gl.createBuffer();
         gl.bindBuffer(bindPoint, buffer);
@@ -95,7 +96,7 @@ var PGGL = {};
         attributes.forEach(function(attribute) {
             attributesInfo.push(PGGL.createAttributeInfo(program, attribute));
         });
-        var count = indices.length || attributes[0].bufferData.length / 3;
+        var count = indices.length || attributes[0].bufferData.length / attributes[0].components;
         return {
             program: program,
             attrbutesInfo: attributesInfo,
@@ -193,6 +194,7 @@ var PGGL = {};
             }
         }
         var texPorgram = PGGL.createProgram('texture-vs', 'texture-fs');
+        var indices = (drawMode === 1 || drawMode === 3) ? geojson.boundaryIndices : geojson.indices;
         var texPorgramInfo = PGGL.createProgramInfo(texPorgram, [
             {
                 property: 'position',
@@ -204,7 +206,7 @@ var PGGL = {};
                 bufferData: colorArray,
                 components: 3
             }
-        ], geojson.indices);
+        ], indices);
 
         var renderTextureWidth = 3200;
         var renderTextureHeight = 1600;
