@@ -167,6 +167,9 @@ var PGGL = {};
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
                     new Uint8Array([127, 127, 127, 255]));
+        if (originTex) {
+            gl.bindTexture(gl.TEXTURE_2D, originTex);
+        }
         var image = new Image();
         image.src = url;
         image.addEventListener('load', function() {
