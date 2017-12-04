@@ -111,6 +111,7 @@
         }
     </script>
     <script src="./chroma.min.js"></script>
+    <script src="./earcut.min.js"></script>
     <script src="./gl-matrix-min.js"></script>
     <script src="./gl.js"></script>
     <script src="./primitive.js"></script>
@@ -119,7 +120,7 @@
         PGGL.geojsonProvider('world.json').then(function(vdata){
             PGGL.getWebglContext('glpaper');
             renderGreyTex = PGGL.getRenderTexture(vdata, true, {color: [0.4, 0.4, 0.4]});
-            renderLineTex = PGGL.getRenderTexture(vdata, true, {drawMode: PGGL.gl.LINES});
+            renderLineTex = PGGL.getRenderTexture(vdata, true, {drawMode: PGGL.gl.LINE_STRIP});
             renderColorTex = PGGL.getRenderTexture(vdata, false);
             imgTex = PGGL.getImgTexture('worldmap.jpg', false, renderGreyTex);
             var textures = [renderGreyTex, renderColorTex, renderLineTex, imgTex];

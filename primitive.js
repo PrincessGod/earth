@@ -126,17 +126,21 @@ PGGL.geojsonProvider = function(url) {
             var v = 1.0;
             var color = chroma.hsv(h, s, v).gl();
             color.pop();
-            positions.push([].concat.apply([], polygons[i]));
             for(var j = 0; j < polygons[i].length; j++) {
                 colors.push(color);
             }
-            var length = polygons[i].length;
-            for(var j = 0, length = polygons[i].length; j < length - 2; j++) {
-                indices.push(cursor, cursor + j + 1, cursor + j + 2);
-            }
-            cursor += length;
-        }
 
+            var polygon = [].concat.apply([], polygons[i]);
+            positions.push(polygon);
+
+            var index = earcut(polygon);
+            index.forEach(function(value, i) {
+                index[i] += cursor;
+            });
+            indices.push(index);
+
+            cursor += polygons[i].length;
+        }
         return {
             position: positions,
             color: colors,
