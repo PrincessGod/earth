@@ -184,11 +184,12 @@ var PGGL = {};
         });
         return texture;
     }
-    // color drawMode
+    // color drawMode multiColor
     PGGL.getRenderTexture = function(geojson, set, options) {
         var color = (options && options.color) || false;
         var drawMode = (options && options.drawMode) || false;
-        var colorArray = geojson.color;
+        var multiColor = (options && options.multiColor) || false;
+        var colorArray = multiColor ? geojson.independColors : geojson.color;
         if(color) {
             colorArray = new Float32Array(geojson.color.length);
             asignPush(colorArray);

@@ -113,23 +113,33 @@ PGGL.geojsonProvider = function(url) {
 
         var positions = new Float32Array(2 * vertexCount);
         var colors = new Float32Array(3 * vertexCount)
+        var independColors = new Float32Array(3 * vertexCount)
         var indices = new Uint16Array(indexCount);
         var boundaryIndices = new Uint16Array(2 * vertexCount);
         asignPush(positions);
         asignPush(colors);
+        asignPush(independColors);
         asignPush(indices);
         asignPush(boundaryIndices);
         var cursor = 0;
-        var hue = Math.random() * 360;
-        for(i = 0; i < polygonCount; i++) {
-            var u = i / polygonCount;
-            var h = (360 + hue + (Math.abs(u - 0.5) * 100)) % 360;
+
+        var getColorWithHue = function(hue, percentage) {
+            var u = percentage;
+            var h = (360 + hue + (Math.abs(u - 0.5) * 150)) % 360;
             var s = Math.sin(u * Math.PI * 2) * 0.25 + 0.75;
             var v = 1.0;
             var color = chroma.hsv(h, s, v).gl();
             color.pop();
+            return color;
+        }
+
+        var hue = Math.random() * 360;
+        for(i = 0; i < polygonCount; i++) {
+            var color = getColorWithHue(hue, i / polygonCount);
             for(var j = 0; j < polygons[i].length; j++) {
                 colors.push(color);
+                var newColor = getColorWithHue((360 + hue + (Math.abs(i / polygonCount - 0.5) * 100)) % 360, j / polygons[i].length);
+                independColors.push(newColor);
             }
 
             var polygon = [].concat.apply([], polygons[i]);
@@ -152,6 +162,7 @@ PGGL.geojsonProvider = function(url) {
         return {
             position: positions,
             color: colors,
+            independColors: independColors,
             indices: indices,
             boundaryIndices: boundaryIndices
         }
